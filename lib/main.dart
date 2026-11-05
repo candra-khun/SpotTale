@@ -36,23 +36,60 @@ class FishDexApp extends StatelessWidget {
 
 /// Menampilkan layar masuk atau aplikasi utama sesuai status login.
 /// Sesi login tersimpan di HP, jadi aplikasi tetap bisa dibuka tanpa sinyal.
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late final dynamic _authSub;
+  Session? _session;
+  CatchStore? _store;
+
+  @override
+  void initState() {
+    super.initState();
     final auth = Supabase.instance.client.auth;
-    return StreamBuilder<AuthState>(
-      stream: auth.onAuthStateChange,
-      builder: (context, snapshot) {
-        final session = snapshot.data?.session ?? auth.currentSession;
-        if (session == null) return const AuthScreen();
-        return ChangeNotifierProvider<CatchStore>(
-          key: ValueKey(session.user.id),
-          create: (_) => CatchStore(session.user.id)..init(),
-          child: const HomeShell(),
-        );
-      },
+    _session = auth.currentSession;
+    _syncStore(_session);
+
+    _authSub = auth.onAuthStateChange.listen((data) {
+      final newSession = data.session ?? auth.currentSession;
+      if (!mounted) return;
+      setState(() {
+        _session = newSession;
+        _syncStore(newSession);
+      });
+    });
+  }
+
+  void _syncStore(Session? session) {
+    if (session == null) {
+      _store?.dispose();
+      _store = null;
+    } else if (_store == null || _store!.userId != session.user.id) {
+      _store?.dispose();
+      _store = CatchStore(session.user.id)..init();
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSub.cancel();
+    _store?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_session == null || _store == null) {
+      return const AuthScreen();
+    }
+    return ChangeNotifierProvider<CatchStore>.value(
+      value: _store!,
+      child: const HomeShell(),
     );
   }
 }

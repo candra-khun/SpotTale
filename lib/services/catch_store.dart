@@ -47,6 +47,61 @@ class CatchStore extends ChangeNotifier {
     return list;
   }
 
+  /// Tangkapan milik angler ini (pribadi + publik milik sendiri).
+  List<CatchRecord> get myCatches =>
+      all.where((c) => c.userId == null || c.userId == userId).toList();
+
+  /// Tangkapan publik universal (dari semua angler yang membagikan tangkapannya).
+  List<CatchRecord> get universalCatches =>
+      all.where((c) => c.isPublic).toList();
+
+  /// Mengubah status publik (share ke universal) untuk satu tangkapan.
+  Future<void> togglePublic(String catchId, bool isPublic) async {
+    _pending = _pending.map((c) {
+      if (c.id == catchId) return c.copyWith(isPublic: isPublic);
+      return c;
+    }).toList();
+
+    _synced = _synced.map((c) {
+      if (c.id == catchId) return c.copyWith(isPublic: isPublic);
+      return c;
+    }).toList();
+
+    await _savePending();
+    await _saveSynced();
+    notifyListeners();
+
+    try {
+      await _db
+          .from('catches')
+          .update({'is_public': isPublic})
+          .eq('id', catchId)
+          .eq('user_id', userId);
+    } catch (_) {}
+  }
+
+  /// Membagikan atau memprivatisasi SEMUA tangkapan milik user ini.
+  Future<void> setAllMyCatchesPublic(bool isPublic) async {
+    _pending = _pending.map((c) => c.copyWith(isPublic: isPublic)).toList();
+    _synced = _synced.map((c) {
+      if (c.userId == null || c.userId == userId) {
+        return c.copyWith(isPublic: isPublic);
+      }
+      return c;
+    }).toList();
+
+    await _savePending();
+    await _saveSynced();
+    notifyListeners();
+
+    try {
+      await _db
+          .from('catches')
+          .update({'is_public': isPublic})
+          .eq('user_id', userId);
+    } catch (_) {}
+  }
+
   int get pendingCount => _pending.length;
 
   @override

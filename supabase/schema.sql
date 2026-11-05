@@ -2,30 +2,40 @@
 
 -- ============ Tabel tangkapan ============
 create table if not exists public.catches (
-  id           uuid primary key,
-  user_id      uuid not null default auth.uid()
-               references auth.users(id) on delete cascade,
-  species_id   text not null,
-  species_name text not null,
-  category     text not null check (category in ('tawar', 'asin')),
-  weight_kg    numeric(8, 2),
-  rod          text,
-  reel         text,
-  bait         text,
-  lat          double precision not null,
-  lng          double precision not null,
-  caught_at    timestamptz not null default now(),
-  photo_path   text,
-  created_at   timestamptz not null default now()
+  id                 uuid primary key,
+  user_id            uuid not null default auth.uid()
+                     references auth.users(id) on delete cascade,
+  species_id         text not null,
+  species_name       text not null,
+  category           text not null check (category in ('tawar', 'asin')),
+  weight_kg          numeric(8, 2),
+  rod                text,
+  reel               text,
+  bait               text,
+  lat                double precision not null,
+  lng                double precision not null,
+  caught_at          timestamptz not null default now(),
+  photo_path         text,
+  is_public          boolean not null default false,
+  angler_name        text,
+  angler_avatar_url  text,
+  created_at         timestamptz not null default now()
 );
 
 create index if not exists catches_user_time_idx
   on public.catches (user_id, caught_at desc);
 
+create index if not exists catches_public_idx
+  on public.catches (is_public, caught_at desc);
+
 alter table public.catches enable row level security;
 
-create policy "catches_select_own" on public.catches
-  for select to authenticated using (auth.uid() = user_id);
+-- Pengguna bisa melihat tangkapan miliknya sendiri ATAU tangkapan universal (publik)
+drop policy if exists "catches_select_own" on public.catches;
+drop policy if exists "catches_select_all" on public.catches;
+create policy "catches_select_all" on public.catches
+  for select to authenticated
+  using (auth.uid() = user_id or is_public = true);
 create policy "catches_insert_own" on public.catches
   for insert to authenticated with check (auth.uid() = user_id);
 create policy "catches_update_own" on public.catches

@@ -236,11 +236,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await Supabase.instance.client.auth.signOut();
   }
 
+  Future<void> _confirmShareAll(
+      BuildContext context, CatchStore store, bool makePublic) async {
+    final title = makePublic
+        ? 'Bagikan semua tangkapan?'
+        : 'Privatisasi semua tangkapan?';
+    final desc = makePublic
+        ? 'Semua tangkapan yang kamu miliki akan terlihat oleh seluruh pemancing di Peta Universal.'
+        : 'Semua tangkapan kamu akan disembunyikan dari Peta Universal dan hanya bisa kamu lihat.';
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(desc),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(makePublic ? 'Bagikan Semua' : 'Privatkan'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true && context.mounted) {
+      await store.setAllMyCatchesPublic(makePublic);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              makePublic
+                  ? 'Semua tangkapan telah dibagikan ke Universal.'
+                  : 'Semua tangkapan telah dijadikan pribadi.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = context.watch<CatchStore>();
     final user = Supabase.instance.client.auth.currentUser;
-    final all = store.all;
+    final all = store.myCatches;
     final speciesCount = all
         .map((c) => c.speciesId)
         .where((id) => id != otherSpeciesId)
@@ -394,6 +437,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: const Text('Ganti Foto Profil'),
             trailing: const Icon(Icons.chevron_right),
             onTap: _uploadingAvatar ? null : _pickAndUploadAvatar,
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              'Pengaturan Berbagi (Universal)',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.public, color: Colors.teal),
+            title: const Text('Bagikan Semua Tangkapan'),
+            subtitle: const Text(
+                'Tampilkan seluruh tangkapanmu di peta universal untuk semua pemancing'),
+            onTap: () => _confirmShareAll(context, store, true),
+          ),
+          ListTile(
+            leading: const Icon(Icons.lock_outline, color: Colors.blueGrey),
+            title: const Text('Privatkan Semua Tangkapan'),
+            subtitle: const Text(
+                'Sembunyikan semua tangkapanmu agar hanya bisa dilihat olehmu sendiri'),
+            onTap: () => _confirmShareAll(context, store, false),
           ),
           const Divider(),
           ListTile(

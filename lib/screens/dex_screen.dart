@@ -25,7 +25,7 @@ class _DexScreenState extends State<DexScreen> {
     final store = context.watch<CatchStore>();
 
     final bySpecies = <String, List<CatchRecord>>{};
-    for (final c in store.all) {
+    for (final c in store.myCatches) {
       (bySpecies[c.speciesId] ??= []).add(c);
     }
     final caughtCount =

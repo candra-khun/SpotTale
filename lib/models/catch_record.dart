@@ -9,6 +9,10 @@ class CatchRecord {
     required this.lat,
     required this.lng,
     required this.caughtAt,
+    this.userId,
+    this.isPublic = false,
+    this.anglerName,
+    this.anglerAvatarUrl,
     this.weightKg,
     this.rod,
     this.reel,
@@ -25,6 +29,7 @@ class CatchRecord {
         _localPhotoPaths = localPhotoPaths ?? (localPhotoPath != null ? [localPhotoPath] : const []);
 
   final String id;
+  final String? userId;
   final String speciesId;
   final String speciesName;
 
@@ -37,6 +42,13 @@ class CatchRecord {
   final double lat;
   final double lng;
   final DateTime caughtAt;
+
+  /// Apakah tangkapan ini dibagikan ke peta universal (publik)
+  final bool isPublic;
+
+  /// Nama & foto avatar angler pemilik tangkapan (untuk tampilan universal)
+  final String? anglerName;
+  final String? anglerAvatarUrl;
 
   final List<String> _photoPaths;
   final List<String> _photoUrls;
@@ -60,6 +72,10 @@ class CatchRecord {
   WaterType get water => waterFromName(category);
 
   CatchRecord copyWith({
+    String? userId,
+    bool? isPublic,
+    String? anglerName,
+    String? anglerAvatarUrl,
     String? localPhotoPath,
     List<String>? localPhotoPaths,
     List<String>? photoPaths,
@@ -68,12 +84,16 @@ class CatchRecord {
   }) {
     return CatchRecord(
       id: id,
+      userId: userId ?? this.userId,
       speciesId: speciesId,
       speciesName: speciesName,
       category: category,
       lat: lat,
       lng: lng,
       caughtAt: caughtAt,
+      isPublic: isPublic ?? this.isPublic,
+      anglerName: anglerName ?? this.anglerName,
+      anglerAvatarUrl: anglerAvatarUrl ?? this.anglerAvatarUrl,
       weightKg: weightKg,
       rod: rod,
       reel: reel,
@@ -86,9 +106,9 @@ class CatchRecord {
     );
   }
 
-  Map<String, dynamic> toRow(String userId, String? uploadedPhotoPath) => {
+  Map<String, dynamic> toRow(String currentUserId, String? uploadedPhotoPath) => {
         'id': id,
-        'user_id': userId,
+        'user_id': userId ?? currentUserId,
         'species_id': speciesId,
         'species_name': speciesName,
         'category': category,
@@ -100,6 +120,9 @@ class CatchRecord {
         'lng': lng,
         'caught_at': caughtAt.toUtc().toIso8601String(),
         'photo_path': uploadedPhotoPath,
+        'is_public': isPublic,
+        'angler_name': anglerName,
+        'angler_avatar_url': anglerAvatarUrl,
       };
 
   factory CatchRecord.fromRow(Map<String, dynamic> r, dynamic photoUrlOrUrls, [List<String>? paths]) {
@@ -118,6 +141,7 @@ class CatchRecord {
 
     return CatchRecord(
       id: r['id'] as String,
+      userId: r['user_id'] as String?,
       speciesId: r['species_id'] as String,
       speciesName: r['species_name'] as String,
       category: r['category'] as String,
@@ -128,6 +152,9 @@ class CatchRecord {
       lat: (r['lat'] as num).toDouble(),
       lng: (r['lng'] as num).toDouble(),
       caughtAt: DateTime.parse(r['caught_at'] as String).toLocal(),
+      isPublic: (r['is_public'] as bool?) ?? false,
+      anglerName: r['angler_name'] as String?,
+      anglerAvatarUrl: r['angler_avatar_url'] as String?,
       photoPaths: pList,
       photoUrls: uList,
     );
@@ -135,6 +162,7 @@ class CatchRecord {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'userId': userId,
         'speciesId': speciesId,
         'speciesName': speciesName,
         'category': category,
@@ -145,6 +173,9 @@ class CatchRecord {
         'lat': lat,
         'lng': lng,
         'caughtAt': caughtAt.toIso8601String(),
+        'isPublic': isPublic,
+        'anglerName': anglerName,
+        'anglerAvatarUrl': anglerAvatarUrl,
         'photoPath': photoPath,
         'photoUrl': photoUrl,
         'localPhotoPath': localPhotoPath,
@@ -172,6 +203,7 @@ class CatchRecord {
 
     return CatchRecord(
       id: j['id'] as String,
+      userId: j['userId'] as String?,
       speciesId: j['speciesId'] as String,
       speciesName: j['speciesName'] as String,
       category: j['category'] as String,
@@ -182,6 +214,9 @@ class CatchRecord {
       lat: (j['lat'] as num).toDouble(),
       lng: (j['lng'] as num).toDouble(),
       caughtAt: DateTime.parse(j['caughtAt'] as String),
+      isPublic: (j['isPublic'] as bool?) ?? false,
+      anglerName: j['anglerName'] as String?,
+      anglerAvatarUrl: j['anglerAvatarUrl'] as String?,
       photoPaths: pList,
       photoUrls: uList,
       localPhotoPaths: lList,

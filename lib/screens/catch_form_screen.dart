@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config.dart';
@@ -111,6 +112,7 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
   String? _rod;
   String? _reel;
   String? _bait;
+  bool _isPublic = true;
 
   LatLng? _pos;
   String? _locNote;
@@ -290,8 +292,20 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
           ? _custom.text.trim()
           : species.name;
 
+      final user = Supabase.instance.client.auth.currentUser;
+      final meta = user?.userMetadata;
+      final metaName = (meta?['display_name'] as String?)?.trim();
+      final anglerName = (metaName != null && metaName.isNotEmpty)
+          ? metaName
+          : (user?.email?.split('@').first ?? 'Angler');
+      final anglerAvatarUrl = meta?['avatar_url'] as String?;
+
       final record = CatchRecord(
         id: const Uuid().v4(),
+        userId: user?.id,
+        isPublic: _isPublic,
+        anglerName: anglerName,
+        anglerAvatarUrl: anglerAvatarUrl,
         speciesId: species.id,
         speciesName: name,
         category: _water.name,
@@ -625,6 +639,43 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: _isPublic
+                      ? Colors.teal.shade300
+                      : Colors.grey.shade300,
+                  width: 1.5,
+                ),
+              ),
+              color: _isPublic
+                  ? Colors.teal.withAlpha(15)
+                  : Colors.grey.withAlpha(15),
+              child: SwitchListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                secondary: Icon(
+                  _isPublic ? Icons.public : Icons.lock_outline,
+                  color: _isPublic ? Colors.teal : Colors.grey,
+                  size: 28,
+                ),
+                title: const Text(
+                  'Bagikan ke Universal',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  _isPublic
+                      ? 'Dapat dilihat oleh semua pengguna di peta universal.'
+                      : 'Hanya kamu yang bisa melihat tangkapan ini (pribadi).',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                value: _isPublic,
+                onChanged: (val) => setState(() => _isPublic = val),
+              ),
+            ),
+            const SizedBox(height: 12),
             _buildLocationCard(),
             const SizedBox(height: 24),
           ],
@@ -770,90 +821,128 @@ class _GearField extends StatefulWidget {
 }
 
 class _GearFieldState extends State<_GearField> {
+  final _addController = TextEditingController();
+
+  @override
+  void dispose() {
+    _addController.dispose();
+    super.dispose();
+  }
+
   Future<void> _open() async {
-    final items = List<String>.from(widget.store.gear[widget.kind] ?? const <String>[]);
+    final store = widget.store;
 
     final picked = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(ctx).size.height * 0.7,
-          ),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(widget.label,
-                    style: Theme.of(ctx).textTheme.titleMedium),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final items = List<String>.from(store.gear[widget.kind] ?? const <String>[]);
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
               ),
-              ListTile(
-                leading: const Icon(Icons.add_circle_outline),
-                title: const Text('Tambah baru…'),
-                onTap: () => Navigator.pop(ctx, _kAdd),
-              ),
-              for (final i in items)
-                ListTile(
-                  title: Text(i),
-                  trailing: i == widget.value ? const Icon(Icons.check) : null,
-                  onTap: () => Navigator.pop(ctx, i),
+              child: SafeArea(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Row(
+                          children: [
+                            Text(widget.label,
+                                style: Theme.of(ctx).textTheme.titleMedium),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, _kNone),
+                              child: const Text('Kosongkan'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _addController,
+                                textCapitalization: TextCapitalization.words,
+                                decoration: InputDecoration(
+                                  hintText: 'Tambah ${widget.label.toLowerCase()} baru…',
+                                  isDense: true,
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton(
+                              onPressed: () async {
+                                final text = _addController.text.trim();
+                                if (text.isEmpty) return;
+                                _addController.clear();
+                                final saved = await store.addGear(widget.kind, text);
+                                if (ctx.mounted && saved != null) {
+                                  Navigator.pop(ctx, saved);
+                                }
+                              },
+                              child: const Text('Tambah'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Flexible(
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: [
+                            if (items.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(
+                                  child: Text(
+                                    'Belum ada daftar tersimpan.\nKetik di atas untuk menambah.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.black54),
+                                  ),
+                                ),
+                              )
+                            else
+                              for (final i in items)
+                                ListTile(
+                                  title: Text(i),
+                                  trailing: i == widget.value
+                                      ? const Icon(Icons.check, color: Colors.teal)
+                                      : null,
+                                  onTap: () => Navigator.pop(ctx, i),
+                                ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ListTile(
-                leading: const Icon(Icons.block),
-                title: const Text('Tidak diisi'),
-                onTap: () => Navigator.pop(ctx, _kNone),
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
 
     if (picked == null || !mounted) return;
 
     if (picked == _kNone) {
       widget.onChanged(null);
-    } else if (picked == _kAdd) {
-      final name = await _askName();
-      if (name == null || !mounted) return;
-      final saved = await widget.store.addGear(widget.kind, name);
-      if (!mounted) return;
-      if (saved != null) widget.onChanged(saved);
     } else {
       widget.onChanged(picked);
     }
-  }
-
-  Future<String?> _askName() async {
-    final c = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Tambah ${widget.label}'),
-        content: TextField(
-          controller: c,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(hintText: 'Nama / merek / tipe'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, c.text.trim()),
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
-    c.dispose();
-    if (result == null || result.isEmpty) return null;
-    return result;
   }
 
   @override

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/catch_record.dart';
 import '../models/species.dart';
+import '../services/catch_store.dart';
 import '../utils.dart';
 import 'fish_pin.dart';
 
@@ -20,80 +23,212 @@ Widget _line(IconData icon, String text) {
 
 void showCatchDetail(BuildContext context, CatchRecord c) {
   final species = speciesById(c.speciesId);
+  final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+  final isMine = c.userId == null || (currentUserId != null && c.userId == currentUserId);
+  bool isPublic = c.isPublic;
 
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (ctx) => SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CatchPhotoGallery(record: c),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSheetState) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header profil pemilik jika ini tangkapan universal orang lain
+              if (!isMine) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withAlpha(25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.teal.shade200),
+                  ),
+                  child: Row(
                     children: [
-                      Text(c.speciesName,
-                          style: Theme.of(ctx).textTheme.headlineSmall),
-                      if (species != null && species.id != otherSpeciesId)
-                        Text(
-                          species.latin,
-                          style: const TextStyle(
-                            fontStyle: FontStyle.italic,
-                            color: Colors.black54,
-                          ),
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.teal.shade100,
+                        backgroundImage: c.anglerAvatarUrl != null &&
+                                c.anglerAvatarUrl!.isNotEmpty
+                            ? NetworkImage(c.anglerAvatarUrl!)
+                            : null,
+                        child: c.anglerAvatarUrl == null ||
+                                c.anglerAvatarUrl!.isEmpty
+                            ? const Icon(Icons.person, color: Colors.teal)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              c.anglerName ?? 'Angler SpotTale',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const Text(
+                              'Pemancing di SpotTale',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.teal,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.public, size: 14, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              'Universal',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                if (species?.assetPath != null)
-                  Tooltip(
-                    message: 'Referensi spesies di peta',
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: c.water.color, width: 2),
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          species!.assetPath!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                const SizedBox(height: 12),
+              ],
+
+              CatchPhotoGallery(record: c),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(c.speciesName,
+                            style: Theme.of(ctx).textTheme.headlineSmall),
+                        if (species != null && species.id != otherSpeciesId)
+                          Text(
+                            species.latin,
+                            style: const TextStyle(
+                              fontStyle: FontStyle.italic,
+                              color: Colors.black54,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (species?.assetPath != null)
+                    Tooltip(
+                      message: 'Referensi spesies di peta',
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: c.water.color, width: 2),
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            species!.assetPath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          ),
                         ),
                       ),
                     ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                children: [
+                  Chip(label: Text(c.water.label)),
+                  if (c.pending)
+                    const Chip(
+                      avatar: Icon(Icons.cloud_off, size: 16),
+                      label: Text('Belum terunggah'),
+                    ),
+                  if (isMine)
+                    Chip(
+                      avatar: Icon(
+                        isPublic ? Icons.public : Icons.lock_outline,
+                        size: 16,
+                        color: isPublic ? Colors.teal : Colors.grey,
+                      ),
+                      label: Text(isPublic ? 'Universal' : 'Pribadi'),
+                    ),
+                ],
+              ),
+
+              // Tombol toggle sharing untuk pemilik tangkapan
+              if (isMine) ...[
+                const SizedBox(height: 8),
+                Card(
+                  elevation: 0,
+                  color: isPublic
+                      ? Colors.teal.withAlpha(20)
+                      : Colors.grey.withAlpha(20),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: isPublic
+                          ? Colors.teal.shade300
+                          : Colors.grey.shade300,
+                    ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 8,
-              children: [
-                Chip(label: Text(c.water.label)),
-                if (c.pending)
-                  const Chip(
-                    avatar: Icon(Icons.cloud_off, size: 16),
-                    label: Text('Belum terunggah'),
+                  child: SwitchListTile(
+                    value: isPublic,
+                    onChanged: (val) {
+                      setSheetState(() => isPublic = val);
+                      context.read<CatchStore>().togglePublic(c.id, val);
+                    },
+                    secondary: Icon(
+                      isPublic ? Icons.public : Icons.lock_outline,
+                      color: isPublic ? Colors.teal : Colors.grey,
+                    ),
+                    title: const Text(
+                      'Bagikan ke Universal',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      isPublic
+                          ? 'Tangkapan ini dapat dilihat semua pemancing di peta universal'
+                          : 'Hanya kamu yang bisa melihat tangkapan ini (pribadi)',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
+                ),
               ],
-            ),
-            _line(Icons.scale, fmtWeight(c.weightKg)),
-            _line(Icons.schedule, fmtDateTime(c.caughtAt)),
-            _line(Icons.place,
-                '${c.lat.toStringAsFixed(5)}, ${c.lng.toStringAsFixed(5)}'),
-            if (c.rod != null) _line(Icons.phishing, 'Joran: ${c.rod}'),
-            if (c.reel != null) _line(Icons.album_outlined, 'Reel: ${c.reel}'),
-            if (c.bait != null)
-              _line(Icons.bug_report_outlined, 'Umpan: ${c.bait}'),
-          ],
+
+              _line(Icons.scale, fmtWeight(c.weightKg)),
+              _line(Icons.schedule, fmtDateTime(c.caughtAt)),
+              _line(Icons.place,
+                  '${c.lat.toStringAsFixed(5)}, ${c.lng.toStringAsFixed(5)}'),
+              if (c.rod != null) _line(Icons.phishing, 'Joran: ${c.rod}'),
+              if (c.reel != null) _line(Icons.album_outlined, 'Reel: ${c.reel}'),
+              if (c.bait != null)
+                _line(Icons.bug_report_outlined, 'Umpan: ${c.bait}'),
+            ],
+          ),
         ),
       ),
     ),

@@ -10,6 +10,8 @@ import '../widgets/catch_detail.dart';
 import '../widgets/fish_pin.dart';
 import 'catch_form_screen.dart';
 
+enum MapViewMode { universal, pribadi }
+
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -21,6 +23,7 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _controller = MapController();
   LatLng? _me;
   bool _locating = false;
+  MapViewMode _mode = MapViewMode.universal;
 
   Future<void> _goToMe({bool silent = false}) async {
     setState(() => _locating = true);
@@ -41,7 +44,9 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<CatchStore>();
-    final records = store.all;
+    final records = _mode == MapViewMode.universal
+        ? store.universalCatches
+        : store.myCatches;
     final hasCatches = records.isNotEmpty;
     final start = hasCatches
         ? LatLng(records.first.lat, records.first.lng)
@@ -99,18 +104,74 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ],
         ),
-        if (store.pendingCount > 0)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: _PendingBanner(store: store),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (store.pendingCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _PendingBanner(store: store),
+                    ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: SegmentedButton<MapViewMode>(
+                      showSelectedIcon: false,
+                      style: SegmentedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: Colors.transparent,
+                        selectedBackgroundColor: Colors.teal.shade700,
+                        selectedForegroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        side: BorderSide.none,
+                      ),
+                      segments: [
+                        ButtonSegment(
+                          value: MapViewMode.universal,
+                          label: Text(
+                            'Universal (${store.universalCatches.length})',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          icon: const Icon(Icons.public, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: MapViewMode.pribadi,
+                          label: Text(
+                            'Pribadi (${store.myCatches.length})',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          icon: const Icon(Icons.person, size: 18),
+                        ),
+                      ],
+                      selected: {_mode},
+                      onSelectionChanged: (newSelection) {
+                        setState(() => _mode = newSelection.first);
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+        ),
         Positioned(
           right: 16,
           bottom: 16,

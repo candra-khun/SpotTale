@@ -44,30 +44,59 @@ Widget catchPhoto(
   return fallback;
 }
 
-/// Gambar representasi spesies untuk pin di peta: seragam per jenis ikan dari file asset lokal.
-Widget pinSpeciesPhoto(
+/// Foto pin di peta: menampilkan foto asli yang pertama kali diunggah oleh user (index 0).
+/// Bila foto asli belum/gagal dimuat, fallback ke gambar representasi spesies lokal.
+Widget mapPinPhoto(
   CatchRecord c, {
   BoxFit fit = BoxFit.cover,
   int? cacheWidth,
 }) {
   final species = speciesById(c.speciesId);
-  final asset = species?.assetPath;
 
-  // Fallback ke foto yang diunggah user bila asset tidak ada / gagal memuat.
-  final fallback = catchPhoto(c, fit: fit, cacheWidth: cacheWidth);
+  final fallback = (species?.assetPath != null)
+      ? Image.asset(
+          species!.assetPath!,
+          fit: fit,
+          cacheWidth: cacheWidth,
+          errorBuilder: (_, __, ___) => Container(
+            color: Colors.blueGrey.shade50,
+            alignment: Alignment.center,
+            child: Icon(Icons.set_meal, color: c.water.color),
+          ),
+        )
+      : Container(
+          color: Colors.blueGrey.shade50,
+          alignment: Alignment.center,
+          child: Icon(Icons.set_meal, color: c.water.color),
+        );
 
-  if (asset != null) {
-    return Image.asset(
-      asset,
+  final locals = c.localPhotoPaths;
+  if (locals.isNotEmpty) {
+    final local = locals.first;
+    if (File(local).existsSync()) {
+      return Image.file(
+        File(local),
+        fit: fit,
+        cacheWidth: cacheWidth,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+  }
+
+  final urls = c.photoUrls;
+  if (urls.isNotEmpty) {
+    return Image.network(
+      urls.first,
       fit: fit,
       cacheWidth: cacheWidth,
       errorBuilder: (_, __, ___) => fallback,
     );
   }
+
   return fallback;
 }
 
-/// Pin di peta: foto representasi jenis ikan dalam lingkaran.
+/// Pin di peta: foto tangkapan pertama user dalam lingkaran.
 /// Oranye = belum terunggah.
 class FishPin extends StatelessWidget {
   const FishPin({super.key, required this.record});
@@ -95,7 +124,7 @@ class FishPin extends StatelessWidget {
               ),
             ],
           ),
-          child: ClipOval(child: pinSpeciesPhoto(record, cacheWidth: 120)),
+          child: ClipOval(child: mapPinPhoto(record, cacheWidth: 120)),
         ),
         Transform.translate(
           offset: const Offset(0, -6),

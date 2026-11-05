@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../config.dart';
 import '../services/catch_store.dart';
 import '../services/location_service.dart';
+import '../services/weather_service.dart';
 import '../widgets/catch_detail.dart';
 import '../widgets/fish_pin.dart';
 import 'catch_form_screen.dart';
@@ -25,6 +26,35 @@ class _MapScreenState extends State<MapScreen> {
   bool _locating = false;
   MapViewMode _mode = MapViewMode.universal;
 
+  WeatherInfo? _weather;
+  bool _loadingWeather = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDeviceWeather();
+  }
+
+  Future<void> _initDeviceWeather() async {
+    final r = await getCurrentLatLng();
+    final p = r.pos;
+    if (p != null && mounted) {
+      setState(() => _me = p);
+      _fetchWeather(p.latitude, p.longitude);
+    }
+  }
+
+  Future<void> _fetchWeather(double lat, double lng) async {
+    if (!mounted) return;
+    setState(() => _loadingWeather = true);
+    final w = await WeatherService.fetchWeather(lat, lng);
+    if (!mounted) return;
+    setState(() {
+      _weather = w;
+      _loadingWeather = false;
+    });
+  }
+
   Future<void> _goToMe({bool silent = false}) async {
     setState(() => _locating = true);
     final r = await getCurrentLatLng();
@@ -35,6 +65,7 @@ class _MapScreenState extends State<MapScreen> {
     if (p != null) {
       setState(() => _me = p);
       _controller.move(p, 14);
+      _fetchWeather(p.latitude, p.longitude);
     } else if (!silent && r.error != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(r.error!)));
@@ -167,6 +198,21 @@ class _MapScreenState extends State<MapScreen> {
                       },
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _WeatherBadge(
+                      weather: _weather,
+                      loading: _loadingWeather,
+                      onTap: () {
+                        if (_me != null) {
+                          _fetchWeather(_me!.latitude, _me!.longitude);
+                        } else {
+                          _goToMe();
+                        }
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -233,6 +279,181 @@ class _PendingBanner extends StatelessWidget {
                 child: const Text('Kirim'),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeatherBadge extends StatelessWidget {
+  const _WeatherBadge({
+    required this.weather,
+    required this.loading,
+    required this.onTap,
+  });
+
+  final WeatherInfo? weather;
+  final bool loading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading && weather == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withAlpha(235),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Cek cuaca…',
+              style: TextStyle(fontSize: 11, color: Colors.black54),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (weather == null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withAlpha(235),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.cloud_outlined, size: 16, color: Colors.teal),
+                SizedBox(width: 6),
+                Text(
+                  'Cek cuaca lokasi',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final w = weather!;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface.withAlpha(240),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.teal.shade100, width: 1),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(w.icon, size: 20, color: Colors.amber.shade800),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${w.temperature.round()}°C',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        w.description,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (w.locationName != null) ...[
+                        Text(
+                          w.locationName!,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.teal,
+                          ),
+                        ),
+                        const Text(
+                          ' • ',
+                          style: TextStyle(fontSize: 10, color: Colors.black45),
+                        ),
+                      ],
+                      Icon(Icons.air, size: 11, color: Colors.blueGrey.shade400),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${w.windSpeed.toStringAsFixed(0)} km/j',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (loading) ...[
+                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

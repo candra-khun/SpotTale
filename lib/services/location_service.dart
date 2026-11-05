@@ -40,7 +40,7 @@ Future<LocationResult> getCurrentLatLng() async {
       }
     } catch (_) {}
     return const LocationResult(
-      error: 'Belum dapat sinyal GPS. Atur lokasi lewat peta.',
+      error: 'Belum dapat sinyal GPS. Tekan "Atur di peta" untuk isi manual.',
     );
   }
 }

@@ -49,9 +49,12 @@ Future<void> startNewCatch(BuildContext context) async {
   );
   if (file == null || !context.mounted) return;
 
+  final store = context.read<CatchStore>();
+
   final saved = await Navigator.of(context).push<bool>(
     MaterialPageRoute(
       builder: (_) => CatchFormScreen(
+        store: store,
         photo: File(file.path),
         fromCamera: source == ImageSource.camera,
       ),
@@ -69,10 +72,12 @@ Future<void> startNewCatch(BuildContext context) async {
 class CatchFormScreen extends StatefulWidget {
   const CatchFormScreen({
     super.key,
+    required this.store,
     required this.photo,
     required this.fromCamera,
   });
 
+  final CatchStore store;
   final File photo;
   final bool fromCamera;
 
@@ -120,7 +125,10 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
     setState(() {
       _locating = false;
       if (r.pos != null) _pos = r.pos;
-      _locNote = r.error;
+      _locNote = r.error ??
+          (r.pos == null
+              ? 'Belum dapat sinyal GPS. Tekan "Atur di peta" untuk isi manual.'
+              : null);
     });
   }
 
@@ -197,29 +205,36 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
     }
 
     setState(() => _saving = true);
-    final store = context.read<CatchStore>();
-    final species = _species!;
-    final name = species.id == otherSpeciesId
-        ? _custom.text.trim()
-        : species.name;
+    try {
+      final species = _species!;
+      final name = species.id == otherSpeciesId
+          ? _custom.text.trim()
+          : species.name;
 
-    final record = CatchRecord(
-      id: const Uuid().v4(),
-      speciesId: species.id,
-      speciesName: name,
-      category: _water.name,
-      weightKg: _parseWeight(),
-      rod: _rod,
-      reel: _reel,
-      bait: _bait,
-      lat: _pos!.latitude,
-      lng: _pos!.longitude,
-      caughtAt: _caughtAt,
-      pending: true,
-    );
-    await store.addCatch(record, widget.photo);
-    if (!mounted) return;
-    Navigator.of(context).pop(true);
+      final record = CatchRecord(
+        id: const Uuid().v4(),
+        speciesId: species.id,
+        speciesName: name,
+        category: _water.name,
+        weightKg: _parseWeight(),
+        rod: _rod,
+        reel: _reel,
+        bait: _bait,
+        lat: _pos!.latitude,
+        lng: _pos!.longitude,
+        caughtAt: _caughtAt,
+        pending: true,
+      );
+      await widget.store.addCatch(record, widget.photo);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan: $e')),
+      );
+    }
   }
 
   @override
@@ -282,13 +297,17 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
             InkWell(
               onTap: _pickSpecies,
               child: InputDecorator(
+                isEmpty: _species == null,
                 decoration: InputDecoration(
                   labelText: 'Jenis ikan',
+                  hintText: 'Pilih jenis ikan…',
                   border: const OutlineInputBorder(),
                   suffixIcon: const Icon(Icons.arrow_drop_down),
                   errorText: _speciesError ? 'Pilih jenis ikan' : null,
                 ),
-                child: Text(_species?.name ?? 'Pilih jenis ikan…'),
+                child: _species != null
+                    ? Text(_species!.name)
+                    : const SizedBox.shrink(),
               ),
             ),
             if (_species != null && _species!.id != otherSpeciesId)
@@ -352,6 +371,7 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
             ),
             const SizedBox(height: 12),
             _GearField(
+              store: widget.store,
               kind: 'rod',
               label: 'Joran',
               value: _rod,
@@ -359,6 +379,7 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
             ),
             const SizedBox(height: 12),
             _GearField(
+              store: widget.store,
               kind: 'reel',
               label: 'Reel',
               value: _reel,
@@ -366,6 +387,7 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
             ),
             const SizedBox(height: 12),
             _GearField(
+              store: widget.store,
               kind: 'bait',
               label: 'Umpan',
               value: _bait,
@@ -414,6 +436,12 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
                                 '${pos.longitude.toStringAsFixed(5)}',
                   ),
                 ),
+                if (_locating)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
               ],
             ),
             if (_locNote != null)
@@ -503,22 +531,28 @@ const String _kAdd = '__add__';
 const String _kNone = '__none__';
 
 /// Field pilihan alat (joran/reel/umpan) dengan opsi "+ Tambah baru".
-class _GearField extends StatelessWidget {
+class _GearField extends StatefulWidget {
   const _GearField({
+    required this.store,
     required this.kind,
     required this.label,
     required this.value,
     required this.onChanged,
   });
 
+  final CatchStore store;
   final String kind;
   final String label;
   final String? value;
   final ValueChanged<String?> onChanged;
 
-  Future<void> _open(BuildContext context) async {
-    final store = context.read<CatchStore>();
-    final items = store.gear[kind] ?? const <String>[];
+  @override
+  State<_GearField> createState() => _GearFieldState();
+}
+
+class _GearFieldState extends State<_GearField> {
+  Future<void> _open() async {
+    final items = List<String>.from(widget.store.gear[widget.kind] ?? const <String>[]);
 
     final picked = await showModalBottomSheet<String>(
       context: context,
@@ -534,7 +568,7 @@ class _GearField extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(label,
+                child: Text(widget.label,
                     style: Theme.of(ctx).textTheme.titleMedium),
               ),
               ListTile(
@@ -545,7 +579,7 @@ class _GearField extends StatelessWidget {
               for (final i in items)
                 ListTile(
                   title: Text(i),
-                  trailing: i == value ? const Icon(Icons.check) : null,
+                  trailing: i == widget.value ? const Icon(Icons.check) : null,
                   onTap: () => Navigator.pop(ctx, i),
                 ),
               ListTile(
@@ -559,26 +593,27 @@ class _GearField extends StatelessWidget {
       ),
     );
 
-    if (picked == null || !context.mounted) return;
+    if (picked == null || !mounted) return;
+
     if (picked == _kNone) {
-      onChanged(null);
+      widget.onChanged(null);
     } else if (picked == _kAdd) {
-      final name = await _askName(context);
-      if (name != null) {
-        final saved = await store.addGear(kind, name);
-        if (saved != null) onChanged(saved);
-      }
+      final name = await _askName();
+      if (name == null || !mounted) return;
+      final saved = await widget.store.addGear(widget.kind, name);
+      if (!mounted) return;
+      if (saved != null) widget.onChanged(saved);
     } else {
-      onChanged(picked);
+      widget.onChanged(picked);
     }
   }
 
-  Future<String?> _askName(BuildContext context) async {
+  Future<String?> _askName() async {
     final c = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Tambah $label'),
+        title: Text('Tambah ${widget.label}'),
         content: TextField(
           controller: c,
           autofocus: true,
@@ -604,17 +639,19 @@ class _GearField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Rebuild saat daftar alat berubah.
-    context.watch<CatchStore>();
     return InkWell(
-      onTap: () => _open(context),
+      onTap: _open,
       child: InputDecorator(
+        isEmpty: widget.value == null,
         decoration: InputDecoration(
-          labelText: label,
+          labelText: widget.label,
+          hintText: 'Pilih atau tambah…',
           border: const OutlineInputBorder(),
           suffixIcon: const Icon(Icons.arrow_drop_down),
         ),
-        child: Text(value ?? 'Pilih atau tambah…'),
+        child: widget.value != null
+            ? Text(widget.value!)
+            : const SizedBox.shrink(),
       ),
     );
   }

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/catch_record.dart';
 import '../models/species.dart';
 
-/// Foto tangkapan: file lokal (belum terunggah) atau URL server.
+/// Foto tangkapan asli yang diupload user (file lokal atau URL Supabase).
 Widget catchPhoto(
   CatchRecord c, {
   BoxFit fit = BoxFit.cover,
@@ -38,7 +38,31 @@ Widget catchPhoto(
   return fallback;
 }
 
-/// Pin di peta: foto ikan dalam lingkaran. Oranye = belum terunggah.
+/// Gambar representasi spesies untuk pin di peta: seragam per jenis ikan dari file asset lokal.
+Widget pinSpeciesPhoto(
+  CatchRecord c, {
+  BoxFit fit = BoxFit.cover,
+  int? cacheWidth,
+}) {
+  final species = speciesById(c.speciesId);
+  final asset = species?.assetPath;
+
+  // Fallback ke foto yang diunggah user bila asset tidak ada / gagal memuat.
+  final fallback = catchPhoto(c, fit: fit, cacheWidth: cacheWidth);
+
+  if (asset != null) {
+    return Image.asset(
+      asset,
+      fit: fit,
+      cacheWidth: cacheWidth,
+      errorBuilder: (_, __, ___) => fallback,
+    );
+  }
+  return fallback;
+}
+
+/// Pin di peta: foto representasi jenis ikan dalam lingkaran.
+/// Oranye = belum terunggah.
 class FishPin extends StatelessWidget {
   const FishPin({super.key, required this.record});
 
@@ -51,8 +75,8 @@ class FishPin extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 46,
-          height: 46,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white,
@@ -65,7 +89,7 @@ class FishPin extends StatelessWidget {
               ),
             ],
           ),
-          child: ClipOval(child: catchPhoto(record, cacheWidth: 120)),
+          child: ClipOval(child: pinSpeciesPhoto(record, cacheWidth: 120)),
         ),
         Transform.translate(
           offset: const Offset(0, -6),

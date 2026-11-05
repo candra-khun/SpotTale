@@ -11,13 +11,22 @@ WaterType waterFromName(String? name) =>
     name == 'asin' ? WaterType.asin : WaterType.tawar;
 
 class Species {
-  const Species(this.id, this.name, this.latin, this.water, this.note);
+  const Species(
+    this.id,
+    this.name,
+    this.latin,
+    this.water,
+    this.note,
+  );
 
   final String id;
   final String name;
   final String latin;
   final WaterType water;
   final String note;
+
+  String? get assetPath =>
+      id == otherSpeciesId ? null : 'assets/species/$id.jpg';
 }
 
 /// Pilihan untuk ikan yang belum ada di Dex. Tidak masuk grid Dex.
@@ -32,7 +41,7 @@ const Species kOtherSpecies = Species(
 
 /// Daftar Dex: ikan perairan Indonesia yang umum dipancing.
 /// Urutan menentukan nomor Dex, jadi tambahkan spesies baru di AKHIR daftar.
-const List<Species> kDexSpecies = [
+final List<Species> kDexSpecies = [
   // ---- Air tawar ----
   Species('nila', 'Nila', 'Oreochromis niloticus', WaterType.tawar,
       'Kolam, waduk, dan sungai. Umpan: cacing, pelet, roti.'),

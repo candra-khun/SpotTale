@@ -1,3 +1,6 @@
+# Kredensial lokal — JANGAN di-commit
+lib/config.local.dart
+
 .dart_tool/
 .packages
 .flutter-plugins

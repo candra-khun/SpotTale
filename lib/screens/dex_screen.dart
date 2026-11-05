@@ -148,13 +148,45 @@ class _DexTile extends StatelessWidget {
           children: [
             Expanded(
               child: SizedBox.expand(
-                child: caught
-                    ? catchPhoto(catches.first, cacheWidth: 300)
-                    : Container(
-                        color: Colors.grey.shade200,
-                        child: Icon(Icons.set_meal,
-                            size: 44, color: Colors.grey.shade400),
-                      ),
+                child: species.assetPath != null
+                    ? (caught
+                        ? Image.asset(
+                            species.assetPath!,
+                            fit: BoxFit.cover,
+                            cacheWidth: 300,
+                            errorBuilder: (_, __, ___) => catches.isNotEmpty
+                                ? catchPhoto(catches.first, cacheWidth: 300)
+                                : Container(
+                                    color: Colors.grey.shade200,
+                                    child: Icon(Icons.set_meal,
+                                        size: 44, color: Colors.grey.shade400),
+                                  ),
+                          )
+                        : ColorFiltered(
+                            colorFilter: const ColorFilter.matrix(<double>[
+                              0.2126, 0.7152, 0.0722, 0, 0,
+                              0.2126, 0.7152, 0.0722, 0, 0,
+                              0.2126, 0.7152, 0.0722, 0, 0,
+                              0,      0,      0,      0.45, 0,
+                            ]),
+                            child: Image.asset(
+                              species.assetPath!,
+                              fit: BoxFit.cover,
+                              cacheWidth: 300,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: Colors.grey.shade200,
+                                child: Icon(Icons.set_meal,
+                                    size: 44, color: Colors.grey.shade400),
+                              ),
+                            ),
+                          ))
+                    : (caught
+                        ? catchPhoto(catches.first, cacheWidth: 300)
+                        : Container(
+                            color: Colors.grey.shade200,
+                            child: Icon(Icons.set_meal,
+                                size: 44, color: Colors.grey.shade400),
+                          )),
               ),
             ),
             Padding(
@@ -202,6 +234,22 @@ class _DexTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (species.assetPath != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      height: 140,
+                      width: double.infinity,
+                      child: Image.asset(
+                        species.assetPath!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
               Text(species.name,
                   style: Theme.of(ctx).textTheme.headlineSmall),
               Text(

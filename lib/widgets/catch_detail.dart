@@ -19,6 +19,8 @@ Widget _line(IconData icon, String text) {
 }
 
 void showCatchDetail(BuildContext context, CatchRecord c) {
+  final species = speciesById(c.speciesId);
+
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -37,7 +39,46 @@ void showCatchDetail(BuildContext context, CatchRecord c) {
               ),
             ),
             const SizedBox(height: 12),
-            Text(c.speciesName, style: Theme.of(ctx).textTheme.headlineSmall),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(c.speciesName,
+                          style: Theme.of(ctx).textTheme.headlineSmall),
+                      if (species != null && species.id != otherSpeciesId)
+                        Text(
+                          species.latin,
+                          style: const TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: Colors.black54,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (species?.assetPath != null)
+                  Tooltip(
+                    message: 'Referensi spesies di peta',
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: c.water.color, width: 2),
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          species!.assetPath!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 4),
             Wrap(
               spacing: 8,

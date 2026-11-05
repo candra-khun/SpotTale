@@ -33,7 +33,7 @@ Future<void> startNewCatch(BuildContext context) async {
           ListTile(
             leading: const Icon(Icons.photo_library),
             title: const Text('Pilih dari galeri'),
-            subtitle: const Text('Untuk tangkapan yang diinput belakangan'),
+            subtitle: const Text('Bisa pilih satu atau beberapa foto sekaligus'),
             onTap: () => Navigator.pop(ctx, ImageSource.gallery),
           ),
         ],
@@ -42,12 +42,23 @@ Future<void> startNewCatch(BuildContext context) async {
   );
   if (source == null || !context.mounted) return;
 
-  final XFile? file = await ImagePicker().pickImage(
-    source: source,
-    maxWidth: 1600,
-    imageQuality: 85,
-  );
-  if (file == null || !context.mounted) return;
+  List<File> initialPhotos = [];
+  if (source == ImageSource.gallery) {
+    final List<XFile> files = await ImagePicker().pickMultiImage(
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+    if (files.isEmpty || !context.mounted) return;
+    initialPhotos = files.map((f) => File(f.path)).toList();
+  } else {
+    final XFile? file = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+    if (file == null || !context.mounted) return;
+    initialPhotos = [File(file.path)];
+  }
 
   final store = context.read<CatchStore>();
 
@@ -55,7 +66,7 @@ Future<void> startNewCatch(BuildContext context) async {
     MaterialPageRoute(
       builder: (_) => CatchFormScreen(
         store: store,
-        photo: File(file.path),
+        photos: initialPhotos,
         fromCamera: source == ImageSource.camera,
       ),
     ),
@@ -70,15 +81,16 @@ Future<void> startNewCatch(BuildContext context) async {
 }
 
 class CatchFormScreen extends StatefulWidget {
-  const CatchFormScreen({
+  CatchFormScreen({
     super.key,
     required this.store,
-    required this.photo,
+    List<File>? photos,
+    File? photo,
     required this.fromCamera,
-  });
+  }) : photos = photos ?? (photo != null ? [photo] : const []);
 
   final CatchStore store;
-  final File photo;
+  final List<File> photos;
   final bool fromCamera;
 
   @override
@@ -89,6 +101,9 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _weight = TextEditingController();
   final _custom = TextEditingController();
+
+  late final List<File> _photos = List<File>.from(widget.photos);
+  int _activePhotoIndex = 0;
 
   Species? _species;
   bool _speciesError = false;
@@ -103,7 +118,7 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
   bool _saving = false;
   late DateTime _caughtAt = DateTime.now();
   late final Future<List<Species>> _suggestions =
-      fishScanner.suggest(widget.photo);
+      fishScanner.suggest(_photos.isNotEmpty ? _photos.first : File(''));
 
   @override
   void initState() {
@@ -116,6 +131,70 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
     _weight.dispose();
     _custom.dispose();
     super.dispose();
+  }
+
+  Future<void> _addMorePhotos() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Ambil foto dari kamera'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Pilih dari galeri'),
+              subtitle: const Text('Bisa pilih beberapa foto sekaligus'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    if (source == ImageSource.gallery) {
+      final List<XFile> picked = await ImagePicker().pickMultiImage(
+        maxWidth: 1600,
+        imageQuality: 85,
+      );
+      if (picked.isEmpty || !mounted) return;
+      setState(() {
+        _photos.addAll(picked.map((f) => File(f.path)));
+        _activePhotoIndex = _photos.length - 1;
+      });
+    } else {
+      final XFile? picked = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1600,
+        imageQuality: 85,
+      );
+      if (picked == null || !mounted) return;
+      setState(() {
+        _photos.add(File(picked.path));
+        _activePhotoIndex = _photos.length - 1;
+      });
+    }
+  }
+
+  void _removePhoto(int index) {
+    if (_photos.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Minimal harus ada 1 foto tangkapan.')),
+      );
+      return;
+    }
+    setState(() {
+      _photos.removeAt(index);
+      if (_activePhotoIndex >= _photos.length) {
+        _activePhotoIndex = _photos.length - 1;
+      }
+    });
   }
 
   Future<void> _locate() async {
@@ -225,7 +304,7 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
         caughtAt: _caughtAt,
         pending: true,
       );
-      await widget.store.addCatch(record, widget.photo);
+      await widget.store.addCatch(record, _photos);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -235,6 +314,152 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
         SnackBar(content: Text('Gagal menyimpan: $e')),
       );
     }
+  }
+
+  Widget _buildPhotoSection() {
+    final currentFile = _photos.isNotEmpty
+        ? _photos[_activePhotoIndex.clamp(0, _photos.length - 1)]
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (currentFile != null)
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  height: 220,
+                  width: double.infinity,
+                  child: Image.file(currentFile, fit: BoxFit.cover),
+                ),
+              ),
+              Positioned(
+                bottom: 8,
+                right: 8,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_activePhotoIndex + 1} / ${_photos.length} foto',
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ),
+              if (_photos.length > 1)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Material(
+                    color: Colors.black54,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.white, size: 20),
+                      tooltip: 'Hapus foto ini',
+                      onPressed: () => _removePhoto(_activePhotoIndex),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 64,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (int i = 0; i < _photos.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _activePhotoIndex = i),
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: i == _activePhotoIndex
+                                  ? Colors.teal
+                                  : Colors.grey.shade300,
+                              width: i == _activePhotoIndex ? 2.5 : 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.file(
+                              _photos[i],
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        if (_photos.length > 1)
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: GestureDetector(
+                              onTap: () => _removePhoto(i),
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close,
+                                    size: 12, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              // Tombol tambah foto
+              InkWell(
+                onTap: _addMorePhotos,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.teal.shade300,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.add_a_photo_outlined,
+                          color: Colors.teal, size: 22),
+                      SizedBox(height: 2),
+                      Text(
+                        'Tambah',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.teal,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -256,13 +481,7 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                height: 220,
-                child: Image.file(widget.photo, fit: BoxFit.cover),
-              ),
-            ),
+            _buildPhotoSection(),
             const SizedBox(height: 16),
 
             // Tebakan hasil scan (kosong sampai model scan dipasang).

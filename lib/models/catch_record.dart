@@ -1,7 +1,7 @@
 import 'species.dart';
 
 class CatchRecord {
-  const CatchRecord({
+  CatchRecord({
     required this.id,
     required this.speciesId,
     required this.speciesName,
@@ -13,11 +13,16 @@ class CatchRecord {
     this.rod,
     this.reel,
     this.bait,
-    this.photoPath,
-    this.photoUrl,
-    this.localPhotoPath,
+    String? photoPath,
+    String? photoUrl,
+    String? localPhotoPath,
+    List<String>? photoPaths,
+    List<String>? photoUrls,
+    List<String>? localPhotoPaths,
     this.pending = false,
-  });
+  })  : _photoPaths = photoPaths ?? (photoPath != null ? [photoPath] : const []),
+        _photoUrls = photoUrls ?? (photoUrl != null ? [photoUrl] : const []),
+        _localPhotoPaths = localPhotoPaths ?? (localPhotoPath != null ? [localPhotoPath] : const []);
 
   final String id;
   final String speciesId;
@@ -33,21 +38,34 @@ class CatchRecord {
   final double lng;
   final DateTime caughtAt;
 
-  /// Path di Supabase Storage (setelah terunggah).
-  final String? photoPath;
+  final List<String> _photoPaths;
+  final List<String> _photoUrls;
+  final List<String> _localPhotoPaths;
 
-  /// URL publik foto (setelah terunggah).
-  final String? photoUrl;
+  List<String> get photoPaths => _photoPaths;
+  List<String> get photoUrls => _photoUrls;
+  List<String> get localPhotoPaths => _localPhotoPaths;
 
-  /// Path file di HP (selama belum terunggah).
-  final String? localPhotoPath;
+  String? get photoPath => _photoPaths.isNotEmpty ? _photoPaths.first : null;
+  String? get photoUrl => _photoUrls.isNotEmpty ? _photoUrls.first : null;
+  String? get localPhotoPath =>
+      _localPhotoPaths.isNotEmpty ? _localPhotoPaths.first : null;
+
+  int get totalPhotos =>
+      _localPhotoPaths.isNotEmpty ? _localPhotoPaths.length : _photoUrls.length;
 
   /// true = masih menunggu diunggah ke server.
   final bool pending;
 
   WaterType get water => waterFromName(category);
 
-  CatchRecord copyWith({String? localPhotoPath, bool? pending}) {
+  CatchRecord copyWith({
+    String? localPhotoPath,
+    List<String>? localPhotoPaths,
+    List<String>? photoPaths,
+    List<String>? photoUrls,
+    bool? pending,
+  }) {
     return CatchRecord(
       id: id,
       speciesId: speciesId,
@@ -60,9 +78,10 @@ class CatchRecord {
       rod: rod,
       reel: reel,
       bait: bait,
-      photoPath: photoPath,
-      photoUrl: photoUrl,
-      localPhotoPath: localPhotoPath ?? this.localPhotoPath,
+      photoPaths: photoPaths ?? this.photoPaths,
+      photoUrls: photoUrls ?? this.photoUrls,
+      localPhotoPaths: localPhotoPaths ??
+          (localPhotoPath != null ? [localPhotoPath] : this.localPhotoPaths),
       pending: pending ?? this.pending,
     );
   }
@@ -83,7 +102,20 @@ class CatchRecord {
         'photo_path': uploadedPhotoPath,
       };
 
-  factory CatchRecord.fromRow(Map<String, dynamic> r, String? photoUrl) {
+  factory CatchRecord.fromRow(Map<String, dynamic> r, dynamic photoUrlOrUrls, [List<String>? paths]) {
+    final rawPath = r['photo_path'] as String?;
+    final pList = paths ??
+        (rawPath != null && rawPath.isNotEmpty
+            ? rawPath.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+            : <String>[]);
+
+    List<String> uList = [];
+    if (photoUrlOrUrls is List<String>) {
+      uList = photoUrlOrUrls;
+    } else if (photoUrlOrUrls is String && photoUrlOrUrls.isNotEmpty) {
+      uList = [photoUrlOrUrls];
+    }
+
     return CatchRecord(
       id: r['id'] as String,
       speciesId: r['species_id'] as String,
@@ -96,8 +128,8 @@ class CatchRecord {
       lat: (r['lat'] as num).toDouble(),
       lng: (r['lng'] as num).toDouble(),
       caughtAt: DateTime.parse(r['caught_at'] as String).toLocal(),
-      photoPath: r['photo_path'] as String?,
-      photoUrl: photoUrl,
+      photoPaths: pList,
+      photoUrls: uList,
     );
   }
 
@@ -116,10 +148,28 @@ class CatchRecord {
         'photoPath': photoPath,
         'photoUrl': photoUrl,
         'localPhotoPath': localPhotoPath,
+        'photoPaths': photoPaths,
+        'photoUrls': photoUrls,
+        'localPhotoPaths': localPhotoPaths,
         'pending': pending,
       };
 
   factory CatchRecord.fromJson(Map<String, dynamic> j) {
+    final rawPaths = j['photoPaths'];
+    final pList = rawPaths is List
+        ? rawPaths.map((e) => e.toString()).toList()
+        : (j['photoPath'] != null ? [j['photoPath'].toString()] : <String>[]);
+
+    final rawUrls = j['photoUrls'];
+    final uList = rawUrls is List
+        ? rawUrls.map((e) => e.toString()).toList()
+        : (j['photoUrl'] != null ? [j['photoUrl'].toString()] : <String>[]);
+
+    final rawLocals = j['localPhotoPaths'];
+    final lList = rawLocals is List
+        ? rawLocals.map((e) => e.toString()).toList()
+        : (j['localPhotoPath'] != null ? [j['localPhotoPath'].toString()] : <String>[]);
+
     return CatchRecord(
       id: j['id'] as String,
       speciesId: j['speciesId'] as String,
@@ -132,9 +182,9 @@ class CatchRecord {
       lat: (j['lat'] as num).toDouble(),
       lng: (j['lng'] as num).toDouble(),
       caughtAt: DateTime.parse(j['caughtAt'] as String),
-      photoPath: j['photoPath'] as String?,
-      photoUrl: j['photoUrl'] as String?,
-      localPhotoPath: j['localPhotoPath'] as String?,
+      photoPaths: pList,
+      photoUrls: uList,
+      localPhotoPaths: lList,
       pending: (j['pending'] as bool?) ?? false,
     );
   }

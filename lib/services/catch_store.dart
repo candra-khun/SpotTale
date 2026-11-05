@@ -141,25 +141,35 @@ class CatchStore extends ChangeNotifier {
     final remaining = <CatchRecord>[];
     for (final c in List<CatchRecord>.from(_pending)) {
       try {
-        String? photoPath = c.photoPath;
-        final local = c.localPhotoPath;
-        if (local != null && await File(local).exists()) {
-          photoPath = '$userId/${c.id}.jpg';
-          await _db.storage.from(AppConfig.photoBucket).upload(
-                photoPath,
-                File(local),
-                fileOptions: const FileOptions(
-                  upsert: true,
-                  contentType: 'image/jpeg',
-                ),
-              );
+        final List<String> uploadedPaths = [];
+        final locals = c.localPhotoPaths;
+
+        if (locals.isNotEmpty) {
+          for (int i = 0; i < locals.length; i++) {
+            final local = locals[i];
+            if (await File(local).exists()) {
+              final remotePath = '$userId/${c.id}_$i.jpg';
+              await _db.storage.from(AppConfig.photoBucket).upload(
+                    remotePath,
+                    File(local),
+                    fileOptions: const FileOptions(
+                      upsert: true,
+                      contentType: 'image/jpeg',
+                    ),
+                  );
+              uploadedPaths.add(remotePath);
+              try {
+                await File(local).delete();
+              } catch (_) {}
+            }
+          }
         }
-        await _db.from('catches').upsert(c.toRow(userId, photoPath));
-        if (local != null) {
-          try {
-            await File(local).delete();
-          } catch (_) {}
-        }
+
+        final photoPathString = uploadedPaths.isNotEmpty
+            ? uploadedPaths.join(',')
+            : c.photoPath;
+
+        await _db.from('catches').upsert(c.toRow(userId, photoPathString));
       } catch (e) {
         lastError = 'Belum terunggah (menunggu sinyal): $e';
         remaining.add(c);
@@ -179,11 +189,14 @@ class CatchStore extends ChangeNotifier {
           .select()
           .order('caught_at', ascending: false);
       _synced = rows.map<CatchRecord>((r) {
-        final path = r['photo_path'] as String?;
-        final url = path == null
-            ? null
-            : _db.storage.from(AppConfig.photoBucket).getPublicUrl(path);
-        return CatchRecord.fromRow(r, url);
+        final rawPath = r['photo_path'] as String?;
+        final paths = (rawPath != null && rawPath.isNotEmpty)
+            ? rawPath.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+            : <String>[];
+        final urls = paths
+            .map((p) => _db.storage.from(AppConfig.photoBucket).getPublicUrl(p))
+            .toList();
+        return CatchRecord.fromRow(r, urls, paths);
       }).toList();
       await _saveSynced();
       notifyListeners();
@@ -194,18 +207,28 @@ class CatchStore extends ChangeNotifier {
 
   // ----------------------------------------------------------- tangkapan
 
-  Future<void> addCatch(CatchRecord c, File photo) async {
-    String localPath = photo.path;
+  Future<void> addCatch(CatchRecord c, dynamic photoOrPhotos) async {
+    final List<File> photos = photoOrPhotos is List<File>
+        ? photoOrPhotos
+        : (photoOrPhotos is File ? [photoOrPhotos] : <File>[]);
+
+    final List<String> localPaths = [];
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final dest = '${dir.path}/pending_${c.id}.jpg';
-      await photo.copy(dest);
-      localPath = dest;
-    } catch (_) {}
+      for (int i = 0; i < photos.length; i++) {
+        final dest = '${dir.path}/pending_${c.id}_$i.jpg';
+        await photos[i].copy(dest);
+        localPaths.add(dest);
+      }
+    } catch (_) {
+      for (final p in photos) {
+        localPaths.add(p.path);
+      }
+    }
 
     _pending = [
       ..._pending,
-      c.copyWith(localPhotoPath: localPath, pending: true),
+      c.copyWith(localPhotoPaths: localPaths, pending: true),
     ];
     await _savePending();
     notifyListeners();

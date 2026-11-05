@@ -8,6 +8,7 @@ import '../models/species.dart';
 /// Foto tangkapan asli yang diupload user (file lokal atau URL Supabase).
 Widget catchPhoto(
   CatchRecord c, {
+  int index = 0,
   BoxFit fit = BoxFit.cover,
   int? cacheWidth,
 }) {
@@ -17,24 +18,29 @@ Widget catchPhoto(
     child: Icon(Icons.set_meal, color: c.water.color),
   );
 
-  final local = c.localPhotoPath;
-  if (local != null && File(local).existsSync()) {
-    return Image.file(
-      File(local),
-      fit: fit,
-      cacheWidth: cacheWidth,
-      errorBuilder: (_, __, ___) => fallback,
-    );
+  final locals = c.localPhotoPaths;
+  if (locals.isNotEmpty && index < locals.length) {
+    final local = locals[index];
+    if (File(local).existsSync()) {
+      return Image.file(
+        File(local),
+        fit: fit,
+        cacheWidth: cacheWidth,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
   }
-  final url = c.photoUrl;
-  if (url != null) {
+
+  final urls = c.photoUrls;
+  if (urls.isNotEmpty && index < urls.length) {
     return Image.network(
-      url,
+      urls[index],
       fit: fit,
       cacheWidth: cacheWidth,
       errorBuilder: (_, __, ___) => fallback,
     );
   }
+
   return fallback;
 }
 

@@ -9,11 +9,65 @@ import 'services/catch_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (AppConfig.isConfigured) {
-    await Supabase.initialize(
-      url: AppConfig.supabaseUrl,
-      anonKey: AppConfig.supabaseAnonKey,
+
+  // Tangkap error render agar tidak muncul blank grey di HP
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 52),
+              const SizedBox(height: 12),
+              const Text(
+                'Terjadi Kesalahan Aplikasi',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Text(
+                  details.exceptionAsString(),
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: Colors.red.shade900,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                details.stack.toString(),
+                style: const TextStyle(fontSize: 10, color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
+  };
+
+  if (AppConfig.isConfigured) {
+    try {
+      await Supabase.initialize(
+        url: AppConfig.supabaseUrl,
+        anonKey: AppConfig.supabaseAnonKey,
+      ).timeout(const Duration(seconds: 7));
+    } catch (e) {
+      debugPrint('Supabase init error/timeout: $e');
+    }
   }
   runApp(const FishDexApp());
 }
@@ -44,25 +98,42 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  late final dynamic _authSub;
+  dynamic _authSub;
   Session? _session;
   CatchStore? _store;
+  bool _loading = true;
+  String? _initError;
 
   @override
   void initState() {
     super.initState();
-    final auth = Supabase.instance.client.auth;
-    _session = auth.currentSession;
-    _syncStore(_session);
+    _initAuth();
+  }
 
-    _authSub = auth.onAuthStateChange.listen((data) {
-      final newSession = data.session ?? auth.currentSession;
-      if (!mounted) return;
-      setState(() {
-        _session = newSession;
-        _syncStore(newSession);
+  void _initAuth() {
+    try {
+      final auth = Supabase.instance.client.auth;
+      final session = auth.currentSession;
+      _session = session;
+      _syncStore(session);
+
+      _authSub = auth.onAuthStateChange.listen((data) {
+        final newSession = data.session ?? auth.currentSession;
+        if (!mounted) return;
+        setState(() {
+          _session = newSession;
+          _syncStore(newSession);
+          _loading = false;
+        });
       });
-    });
+
+      setState(() => _loading = false);
+    } catch (e) {
+      setState(() {
+        _initError = e.toString();
+        _loading = false;
+      });
+    }
   }
 
   void _syncStore(Session? session) {
@@ -77,13 +148,52 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   void dispose() {
-    _authSub.cancel();
+    try {
+      _authSub?.cancel();
+    } catch (_) {}
     _store?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_initError != null) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 12),
+                Text('Inisialisasi Gagal:\n$_initError', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _initError = null;
+                      _loading = true;
+                    });
+                    _initAuth();
+                  },
+                  child: const Text('Coba Lagi'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_loading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.teal),
+        ),
+      );
+    }
+
     if (_session == null || _store == null) {
       return const AuthScreen();
     }

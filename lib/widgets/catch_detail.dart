@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/catch_record.dart';
 import '../models/species.dart';
+import '../screens/angler_profile_screen.dart';
 import '../services/catch_store.dart';
 import '../utils.dart';
 import 'fish_pin.dart';
@@ -40,73 +41,96 @@ void showCatchDetail(BuildContext context, CatchRecord c) {
             children: [
               // Header profil pemilik jika ini tangkapan universal orang lain
               if (!isMine) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withAlpha(25),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.teal.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: Colors.teal.shade100,
-                        backgroundImage: c.anglerAvatarUrl != null &&
-                                c.anglerAvatarUrl!.isNotEmpty
-                            ? NetworkImage(c.anglerAvatarUrl!)
-                            : null,
-                        child: c.anglerAvatarUrl == null ||
-                                c.anglerAvatarUrl!.isEmpty
-                            ? const Icon(Icons.person, color: Colors.teal)
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              c.anglerName ?? 'Angler SpotTale',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const Text(
-                              'Pemancing di SpotTale',
-                              style: TextStyle(
-                                color: Colors.black54,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                    onTap: () {
+                      final store = context.read<CatchStore>();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AnglerProfileScreen(
+                            store: store,
+                            userId: c.userId ?? '',
+                            initialName: c.anglerName,
+                            initialAvatarUrl: c.anglerAvatarUrl,
+                            initialEmail: c.anglerEmail,
+                            initialPhone: c.anglerPhone,
+                          ),
                         ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withAlpha(25),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.teal.shade200),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.teal,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.public, size: 14, color: Colors.white),
-                            SizedBox(width: 4),
-                            Text(
-                              'Universal',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: Colors.teal.shade100,
+                            backgroundImage: c.anglerAvatarUrl != null &&
+                                    c.anglerAvatarUrl!.isNotEmpty
+                                ? NetworkImage(c.anglerAvatarUrl!)
+                                : null,
+                            child: c.anglerAvatarUrl == null ||
+                                    c.anglerAvatarUrl!.isEmpty
+                                ? const Icon(Icons.person, color: Colors.teal)
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  c.anglerName ?? 'Angler SpotTale',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const Text(
+                                  'Ketuk untuk lihat profil & history',
+                                  style: TextStyle(
+                                    color: Colors.teal,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.teal,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Profil',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(width: 2),
+                                Icon(Icons.chevron_right,
+                                    size: 16, color: Colors.white),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),

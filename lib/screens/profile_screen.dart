@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config.dart';
 import '../models/species.dart';
 import '../services/catch_store.dart';
+import 'angler_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,6 +21,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String? _displayName;
   String? _avatarUrl;
+  String? _phone;
   File? _localAvatarFile;
   bool _uploadingAvatar = false;
 
@@ -36,10 +38,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     final cachedName = prefs.getString('profile_name_${user.id}');
     final cachedAvatar = prefs.getString('profile_avatar_${user.id}');
+    final cachedPhone = prefs.getString('profile_phone_${user.id}');
 
     final meta = user.userMetadata ?? {};
     final serverName = meta['display_name'] as String?;
     final serverAvatar = meta['avatar_url'] as String?;
+    final serverPhone = (meta['whatsapp'] ??
+            meta['phone_number'] ??
+            meta['phone']) as String?;
 
     if (mounted) {
       setState(() {
@@ -48,6 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             user.email?.split('@').first ??
             'Angler';
         _avatarUrl = serverAvatar ?? cachedAvatar;
+        _phone = serverPhone ?? cachedPhone;
       });
     }
   }
@@ -92,6 +99,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('profile_name_${user.id}', newName);
 
+    // Update profil di semua tangkapan lokal & Supabase
+    context.read<CatchStore>().updateAnglerProfile(name: newName);
+
     try {
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(
@@ -112,6 +122,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SnackBar(
               content:
                   Text('Nama tersimpan di HP (gagal sync ke server: $e)')),
+        );
+      }
+    }
+  }
+
+  Future<void> _editPhone() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final store = context.read<CatchStore>();
+    final controller = TextEditingController(text: _phone);
+    final newPhone = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nomor WhatsApp / HP'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'Nomor WhatsApp',
+            hintText: 'Contoh: 081234567890',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.phone, color: Colors.teal),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (newPhone == null || !mounted) return;
+
+    final trimmed = newPhone.trim();
+    setState(() => _phone = trimmed.isEmpty ? null : trimmed);
+
+    final prefs = await SharedPreferences.getInstance();
+    if (trimmed.isEmpty) {
+      await prefs.remove('profile_phone_${user.id}');
+    } else {
+      await prefs.setString('profile_phone_${user.id}', trimmed);
+    }
+
+    // Update nomor di semua tangkapan lokal & Supabase
+    store.updateAnglerProfile(phone: trimmed);
+
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(
+          data: {
+            ...user.userMetadata ?? {},
+            'whatsapp': trimmed,
+            'phone_number': trimmed,
+          },
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nomor WhatsApp berhasil disimpan.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nomor tersimpan di HP (sync server: $e)'),
+          ),
         );
       }
     }
@@ -180,6 +266,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('profile_avatar_${user.id}', url);
+
+      // Update avatar pada semua tangkapan lokal & Supabase
+      if (mounted) {
+        context.read<CatchStore>().updateAnglerProfile(avatarUrl: url);
+      }
 
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(
@@ -410,6 +501,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontSize: 13,
                     ),
                   ),
+                  if (_phone != null && _phone!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.phone_android, size: 13, color: Colors.teal),
+                        const SizedBox(width: 4),
+                        Text(
+                          _phone!,
+                          style: const TextStyle(
+                            color: Colors.teal,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -426,11 +535,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
           ListTile(
+            leading: const Icon(Icons.visibility_outlined, color: Colors.teal),
+            title: const Text(
+              'Lihat Profil Publik Saya',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal),
+            ),
+            subtitle: const Text('Pratinjau tampilan profil & history feed Instagram'),
+            trailing: const Icon(Icons.chevron_right, color: Colors.teal),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AnglerProfileScreen(
+                    store: store,
+                    userId: user?.id ?? '',
+                    initialName: _displayName,
+                    initialAvatarUrl: _avatarUrl,
+                    initialEmail: user?.email,
+                    initialPhone: _phone,
+                  ),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
             leading: const Icon(Icons.badge_outlined),
             title: const Text('Ubah Nama Angler'),
             subtitle: Text(_displayName ?? '-'),
             trailing: const Icon(Icons.chevron_right),
             onTap: _editDisplayName,
+          ),
+          ListTile(
+            leading: const Icon(Icons.phone_android, color: Colors.teal),
+            title: const Text('Nomor WhatsApp / HP'),
+            subtitle: Text(
+              _phone != null && _phone!.isNotEmpty
+                  ? _phone!
+                  : 'Belum diatur (tekan untuk menambah)',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _editPhone,
           ),
           ListTile(
             leading: const Icon(Icons.add_a_photo_outlined),

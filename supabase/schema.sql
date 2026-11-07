@@ -19,6 +19,8 @@ create table if not exists public.catches (
   is_public          boolean not null default false,
   angler_name        text,
   angler_avatar_url  text,
+  angler_email       text,
+  angler_phone       text,
   created_at         timestamptz not null default now()
 );
 

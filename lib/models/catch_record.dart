@@ -13,6 +13,8 @@ class CatchRecord {
     this.isPublic = false,
     this.anglerName,
     this.anglerAvatarUrl,
+    this.anglerEmail,
+    this.anglerPhone,
     this.weightKg,
     this.rod,
     this.reel,
@@ -46,9 +48,11 @@ class CatchRecord {
   /// Apakah tangkapan ini dibagikan ke peta universal (publik)
   final bool isPublic;
 
-  /// Nama & foto avatar angler pemilik tangkapan (untuk tampilan universal)
+  /// Data profil angler pemilik tangkapan (untuk tampilan universal & kunjungan profil)
   final String? anglerName;
   final String? anglerAvatarUrl;
+  final String? anglerEmail;
+  final String? anglerPhone;
 
   final List<String> _photoPaths;
   final List<String> _photoUrls;
@@ -76,6 +80,8 @@ class CatchRecord {
     bool? isPublic,
     String? anglerName,
     String? anglerAvatarUrl,
+    String? anglerEmail,
+    String? anglerPhone,
     String? localPhotoPath,
     List<String>? localPhotoPaths,
     List<String>? photoPaths,
@@ -94,6 +100,8 @@ class CatchRecord {
       isPublic: isPublic ?? this.isPublic,
       anglerName: anglerName ?? this.anglerName,
       anglerAvatarUrl: anglerAvatarUrl ?? this.anglerAvatarUrl,
+      anglerEmail: anglerEmail ?? this.anglerEmail,
+      anglerPhone: anglerPhone ?? this.anglerPhone,
       weightKg: weightKg,
       rod: rod,
       reel: reel,
@@ -123,6 +131,8 @@ class CatchRecord {
         'is_public': isPublic,
         'angler_name': anglerName,
         'angler_avatar_url': anglerAvatarUrl,
+        'angler_email': anglerEmail,
+        'angler_phone': anglerPhone,
       };
 
   factory CatchRecord.fromRow(Map<String, dynamic> r, dynamic photoUrlOrUrls, [List<String>? paths]) {
@@ -149,12 +159,14 @@ class CatchRecord {
       rod: r['rod'] as String?,
       reel: r['reel'] as String?,
       bait: r['bait'] as String?,
-      lat: (r['lat'] as num).toDouble(),
-      lng: (r['lng'] as num).toDouble(),
+      lat: ((r['lat'] as num?) ?? -2.5).toDouble(),
+      lng: ((r['lng'] as num?) ?? 118.0).toDouble(),
       caughtAt: DateTime.parse(r['caught_at'] as String).toLocal(),
       isPublic: (r['is_public'] as bool?) ?? false,
       anglerName: r['angler_name'] as String?,
       anglerAvatarUrl: r['angler_avatar_url'] as String?,
+      anglerEmail: r['angler_email'] as String?,
+      anglerPhone: r['angler_phone'] as String?,
       photoPaths: pList,
       photoUrls: uList,
     );
@@ -176,6 +188,8 @@ class CatchRecord {
         'isPublic': isPublic,
         'anglerName': anglerName,
         'anglerAvatarUrl': anglerAvatarUrl,
+        'anglerEmail': anglerEmail,
+        'anglerPhone': anglerPhone,
         'photoPath': photoPath,
         'photoUrl': photoUrl,
         'localPhotoPath': localPhotoPath,
@@ -211,12 +225,14 @@ class CatchRecord {
       rod: j['rod'] as String?,
       reel: j['reel'] as String?,
       bait: j['bait'] as String?,
-      lat: (j['lat'] as num).toDouble(),
-      lng: (j['lng'] as num).toDouble(),
+      lat: ((j['lat'] as num?) ?? -2.5).toDouble(),
+      lng: ((j['lng'] as num?) ?? 118.0).toDouble(),
       caughtAt: DateTime.parse(j['caughtAt'] as String),
       isPublic: (j['isPublic'] as bool?) ?? false,
       anglerName: j['anglerName'] as String?,
       anglerAvatarUrl: j['anglerAvatarUrl'] as String?,
+      anglerEmail: j['anglerEmail'] as String?,
+      anglerPhone: j['anglerPhone'] as String?,
       photoPaths: pList,
       photoUrls: uList,
       localPhotoPaths: lList,

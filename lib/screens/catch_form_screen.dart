@@ -299,6 +299,11 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
           ? metaName
           : (user?.email?.split('@').first ?? 'Angler');
       final anglerAvatarUrl = meta?['avatar_url'] as String?;
+      final anglerEmail = user?.email;
+      final anglerPhone = ((meta?['whatsapp'] ??
+              meta?['phone_number'] ??
+              meta?['phone']) as String?)
+          ?.trim();
 
       final record = CatchRecord(
         id: const Uuid().v4(),
@@ -306,6 +311,8 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
         isPublic: _isPublic,
         anglerName: anglerName,
         anglerAvatarUrl: anglerAvatarUrl,
+        anglerEmail: anglerEmail,
+        anglerPhone: anglerPhone,
         speciesId: species.id,
         speciesName: name,
         category: _water.name,

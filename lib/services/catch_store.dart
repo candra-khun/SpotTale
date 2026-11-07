@@ -102,6 +102,50 @@ class CatchStore extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Memperbarui profil angler pada semua tangkapan milik user ini
+  /// agar di peta dan halaman profil pemancing selalu menampilkan info terupdate.
+  Future<void> updateAnglerProfile({
+    String? name,
+    String? phone,
+    String? avatarUrl,
+  }) async {
+    _pending = _pending.map((c) {
+      if (c.userId == null || c.userId == userId) {
+        return c.copyWith(
+          anglerName: name ?? c.anglerName,
+          anglerPhone: phone ?? c.anglerPhone,
+          anglerAvatarUrl: avatarUrl ?? c.anglerAvatarUrl,
+        );
+      }
+      return c;
+    }).toList();
+
+    _synced = _synced.map((c) {
+      if (c.userId == null || c.userId == userId) {
+        return c.copyWith(
+          anglerName: name ?? c.anglerName,
+          anglerPhone: phone ?? c.anglerPhone,
+          anglerAvatarUrl: avatarUrl ?? c.anglerAvatarUrl,
+        );
+      }
+      return c;
+    }).toList();
+
+    await _savePending();
+    await _saveSynced();
+    notifyListeners();
+
+    try {
+      final updates = <String, dynamic>{};
+      if (name != null) updates['angler_name'] = name;
+      if (phone != null) updates['angler_phone'] = phone;
+      if (avatarUrl != null) updates['angler_avatar_url'] = avatarUrl;
+      if (updates.isNotEmpty) {
+        await _db.from('catches').update(updates).eq('user_id', userId);
+      }
+    } catch (_) {}
+  }
+
   int get pendingCount => _pending.length;
 
   @override

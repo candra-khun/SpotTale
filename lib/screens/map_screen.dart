@@ -405,11 +405,15 @@ class _WeatherBadge extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        w.description,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.black87,
+                      Flexible(
+                        child: Text(
+                          w.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
                     ],
@@ -418,12 +422,16 @@ class _WeatherBadge extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (w.locationName != null) ...[
-                        Text(
-                          w.locationName!,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.teal,
+                        Flexible(
+                          child: Text(
+                            w.locationName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.teal,
+                            ),
                           ),
                         ),
                         const Text(

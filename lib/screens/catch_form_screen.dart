@@ -15,6 +15,7 @@ import '../services/catch_store.dart';
 import '../services/fish_scanner.dart';
 import '../services/location_service.dart';
 import '../utils.dart';
+import '../widgets/new_dex_animation.dart';
 import 'location_picker_screen.dart';
 
 /// Alur tombol "+": ambil foto -> isi form -> simpan (masuk peta + Dex).
@@ -325,8 +326,19 @@ class _CatchFormScreenState extends State<CatchFormScreen> {
         caughtAt: _caughtAt,
         pending: true,
       );
+      final isNewInDex = widget.store.myCatches
+          .where((c) => c.speciesId == species.id)
+          .isEmpty;
+
       await widget.store.addCatch(record, _photos);
       if (!mounted) return;
+
+      if (isNewInDex && species.id != otherSpeciesId) {
+        showNewDexAnimation(context, species);
+        // Beri waktu sedikit agar animasi terlihat sebelum layar ditutup
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;

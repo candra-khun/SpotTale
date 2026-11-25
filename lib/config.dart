@@ -12,6 +12,7 @@ class AppConfig {
   static String get supabaseAnonKey =>
       _envKey.isNotEmpty ? _envKey : _local.kSupabaseAnonKey;
   static const photoBucket = 'catch-photos';
+  static const speciesBucket = 'species-index';
 
   // Peta OpenStreetMap (gratis, tanpa API key). Cocok untuk pemakaian ringan;
   // untuk pengguna banyak, pindah ke penyedia tile berbayar/self-host.

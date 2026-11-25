@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/catch_record.dart';
 import '../models/species.dart';
@@ -133,7 +134,7 @@ class AnglerProfileScreen extends StatelessWidget {
                                   value: '${sharedCatches.length}',
                                 ),
                                 _StatItem(
-                                  label: 'Spesies',
+                                  label: 'Index',
                                   value: '$uniqueSpeciesCount',
                                 ),
                                 _StatItem(
@@ -162,35 +163,50 @@ class AnglerProfileScreen extends StatelessWidget {
                       ),
                       if (email != null && email.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.email_outlined,
-                                size: 14, color: Colors.black54),
-                            const SizedBox(width: 6),
-                            Text(
-                              email,
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.black87),
-                            ),
-                          ],
+                        InkWell(
+                          onTap: () async {
+                            final uri = Uri.parse('mailto:$email');
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri);
+                            }
+                          },
+                          child: Row(
+                            children: [
+                              const Icon(Icons.email_outlined,
+                                  size: 14, color: Colors.black54),
+                              const SizedBox(width: 6),
+                              Text(
+                                email,
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.blueGrey),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                       if (phone != null && phone.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.phone_android,
-                                size: 14, color: Colors.teal),
-                            const SizedBox(width: 6),
-                            Text(
-                              phone,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.teal,
+                        InkWell(
+                          onTap: () => WhatsAppLauncher.openChat(
+                            context,
+                            rawPhone: phone!,
+                            anglerName: name,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.phone_android,
+                                  size: 14, color: Colors.teal),
+                              const SizedBox(width: 6),
+                              Text(
+                                phone,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.teal,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
 
@@ -455,4 +471,3 @@ class _InstagramCatchTile extends StatelessWidget {
     );
   }
 }
-

@@ -528,7 +528,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               _Stat(label: 'Tangkapan', value: '${all.length}'),
               _Stat(
-                  label: 'Spesies Dex',
+                  label: 'Index',
                   value: '$speciesCount/${kDexSpecies.length}'),
               _Stat(label: 'Belum terunggah', value: '${store.pendingCount}'),
             ],
